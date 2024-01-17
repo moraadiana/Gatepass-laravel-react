@@ -1,2 +1,2 @@
-#GBHL Gatepass App
+Gatepass App
 
