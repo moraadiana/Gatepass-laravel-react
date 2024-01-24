@@ -30,8 +30,8 @@ return [
 
         'default' => [
             'hosts' => [env('LDAP_HOST', '10.168.3.195')],
-            'username' => env('LDAP_USERNAME', ''),
-            'password' => env('LDAP_PASSWORD', ''),
+            //'username' => env('LDAP_USERNAME', ''),
+           // 'password' => env('LDAP_PASSWORD', ''),
             'port' => env('LDAP_PORT', 389),
             'base_dn' => env('LDAP_BASE_DN', 'dc=,dc='),
             'timeout' => env('LDAP_TIMEOUT', 5),
