@@ -24,8 +24,6 @@ export default function Index({
     const formRef = useRef();
     const [visible, setVisible] = useState(false);
     const [data, setData] = useState(null);
-
-    console.log (locations);
    
     return (
         <AuthenticatedLayout user={auth.user}>
@@ -100,8 +98,9 @@ export default function Index({
                         ),
                     }}
                     pagination={{
-                        pageSize: 5,
+                        pageSize: locations?.per_page,
                         total: locations?.total,
+                        defaultPageSize: 10,
                     }}
                     toolBarRender={() => [
                         <Button

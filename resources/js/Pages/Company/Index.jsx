@@ -8,6 +8,7 @@ import {
     ModalForm,
     ProFormTextArea,
     ProFormText,
+    ProFormSwitch,
 } from "@ant-design/pro-components";
 import { Head, Link, router } from "@inertiajs/react";
 
@@ -28,7 +29,6 @@ export default function Index({ auth, companies }) {
                         title: "Companies",
                         onBack: () => window.history.back(),
                     }}
-                   
                 >
                     <ProTable
                         headerTitle="Companies"
@@ -55,7 +55,7 @@ export default function Index({ auth, companies }) {
                                 render: (text, record) => (
                                     <Button
                                         type="link"
-                                       //icon={<EditOutlined />}
+                                        //icon={<EditOutlined />}
                                         onClick={() => {
                                             setData(record);
                                             setVisible(true);
@@ -66,8 +66,11 @@ export default function Index({ auth, companies }) {
                                 ),
                             },
                         ]}
-                        pagination={{ defaultPageSize: 5, 
-                        total: companies?.total,}}
+                        pagination={{
+                            pageSize: companies?.per_page,
+                            total: companies?.total,
+                            defaultPageSize: 10,
+                        }}
                         toolBarRender={() => [
                             <Button
                                 type="primary"
@@ -82,55 +85,57 @@ export default function Index({ auth, companies }) {
                         search={false}
                     />
 
-                    <ModalForm 
-                    title= {data ? "Edit Company" : "Create Company"}
-                    open={visible}
-                    onOpenChange={setVisible}
-                    formRef={formRef}
-                    onFinish={async (values) => {
-                        ! data
-                        ? router.post(route("company.store"), 
-                            values,
-                            {
-                                onSuccess: () => {
-                                    formRef.current?.resetFields();
-                                    setVisible(false);
-                                    actionRef.current?.reload();
-                                    message.success("Company created successfully");
-                                },
-                                onError: () => {
-                                    message.error("Failed to create company");
-                                },
-
-                                
-                            }
-                        )
-                        : router.put(
-                            route(
-                                "company.update",
-                                data ?.mgr_gtpcompanies_id
-                            ),
-                            values,
-                            {
-                                onSuccess: () => {
-                                    formRef.current?.resetFields();
-                                    setVisible(false);
-                                    actionRef.current?.reload();
-                                    message.success("Company updated successfully");
-                                },
-                                onError: () => {
-                                    message.error("Failed to update company");
-                                },
-                            }
-                        );
-                    }}
-                    modalProps={{
-                        onCancel: () => [setVisible(false), setData(null)],
-                        destroyOnClose: true,
-                    }}
-                    initialValues={data}
-                    width={600}
-
+                    <ModalForm
+                        title={data ? "Edit Company" : "Create Company"}
+                        open={visible}
+                        onOpenChange={setVisible}
+                        formRef={formRef}
+                        onFinish={async (values) => {
+                            !data
+                                ? router.post(route("company.store"), values, {
+                                      onSuccess: () => {
+                                          formRef.current?.resetFields();
+                                          setVisible(false);
+                                          actionRef.current?.reload();
+                                          message.success(
+                                              "Company created successfully"
+                                          );
+                                      },
+                                      onError: () => {
+                                          message.error(
+                                              "Failed to create company"
+                                          );
+                                      },
+                                  })
+                                : router.put(
+                                      route(
+                                          "company.update",
+                                          data?.mgr_gtpcompanies_id
+                                      ),
+                                      values,
+                                      {
+                                          onSuccess: () => {
+                                              formRef.current?.resetFields();
+                                              setVisible(false);
+                                              actionRef.current?.reload();
+                                              message.success(
+                                                  "Company updated successfully"
+                                              );
+                                          },
+                                          onError: () => {
+                                              message.error(
+                                                  "Failed to update company"
+                                              );
+                                          },
+                                      }
+                                  );
+                        }}
+                        modalProps={{
+                            onCancel: () => [setVisible(false), setData(null)],
+                            destroyOnClose: true,
+                        }}
+                        initialValues={data}
+                        width={600}
                     >
                         <ProForm.Group>
                             <ProFormText
@@ -139,6 +144,10 @@ export default function Index({ auth, companies }) {
                                 label="Name"
                                 placeholder="Name"
                                 rules={[{ required: true }]}
+                            />
+                            <ProFormSwitch
+                                name="mgr_gtpcompanies_status"
+                                label="Status"
                             />
                         </ProForm.Group>
                     </ModalForm>

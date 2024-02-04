@@ -30,16 +30,29 @@ class GatepassController extends Controller
      */
     public function index(Request $request)
     {
-
-        $gatepass = Gatepass::with('user', 'uom', 'company', 'department', 'source_location', 'destination_location', 'items')
-            ->where('mgr_gtpgatepass_createdby', auth()->user()->mgr_gtpusers_id)
-            ->orderBy('created_at', 'desc')
-            ->paginate($request->pageSize);
+        $query = Gatepass::query();
+        if ($request->has('mgr_gtpgatepass_id')) {
+            $query->where('mgr_gtpgatepass_id', 'like', '%' . $request->mgr_gtpgatepass_id . '%');
+        }
+        if ($request->has('mgr_gtpgatepass_name')) {
+            $query->where('mgr_gtpgatepass_name', 'like', '%' . $request->mgr_gtpgatepass_name . '%');
+        }
+        if ($request->has('mgr_gtpgatepass_vehiclereg')) {
+            $query->where('mgr_gtpgatepass_vehiclereg', 'like', '%' . $request->mgr_gtpgatepass_vehiclereg . '%');
+        }
+        if ($request->has('mgr_gtpgatepass_purpose')) {
+            $query->where('mgr_gtpgatepass_purpose', 'like', '%' . $request->mgr_gtpgatepass_purpose . '%');
+        }
+        if ($request->has('mgr_gtpgatepass_auxilarydoc')) {
+            $query->where('mgr_gtpgatepass_auxilarydoc', 'like', '%' . $request->mgr_gtpgatepass_auxilarydoc . '%');
+        }
         return Inertia::render(
             'Gatepass/Index',
 
             [
-                'gatepasses' => $gatepass
+                'gatepasses' => Inertia::lazy(fn () => $query->with('user', 'uom', 'company', 'department', 'source_location', 'destination_location', 'items')->where('mgr_gtpgatepass_createdby', auth()->user()->mgr_gtpusers_id)
+                    ->orderBy('created_at', 'desc')
+                    ->paginate($request->pageSize)),
             ]
         );
     }
@@ -49,12 +62,13 @@ class GatepassController extends Controller
      */
     public function create()
     {
+
         return Inertia::render(
             'Gatepass/Create',
             [
-                'departments' => Department::all(),
-                'uoms' => Uom::all(),
-                'locations' => Location::all(),
+                'departments' => Department::where('mgr_gtpdepartments_status', 1)->get(),
+                'uoms' => Uom::where('mgr_gtpuoms_status', 1)->get(),
+                'locations' => Location::where('mgr_gtplocations_status', 1)->get(),
                 'items' => Item::all(),
             ]
 
@@ -104,12 +118,8 @@ class GatepassController extends Controller
         $currentUser = auth()->user();
 
 
-        $gatepass = Gatepass::with('user', 'uom', 'department', 'source_location', 'destination_location', 'company', 'items', 'approvals.approvalLevel.role', 'approvals.user')
+        $gatepass = Gatepass::with('user', 'department', 'source_location', 'destination_location', 'company', 'items.uom', 'approvals.approvalLevel.role', 'approvals.user')
             ->find($id);
-
-
-
-
 
         return Inertia::render(
             'Gatepass/Show',
@@ -142,18 +152,18 @@ class GatepassController extends Controller
     public function update(Request $request, Gatepass $gatepass, Item $item)
     {
         //Update the resource with new data from request*/
-   
+
         $gatepass->update($request->all());
 
-    
-    // Remove all items
-    $gatepass->items()->delete();
 
-    // Recreate items with new data from request
-    $gatepass->items()->createMany($request->input('items'));
+        // Remove all items
+        $gatepass->items()->delete();
+
+        // Recreate items with new data from request
+        $gatepass->items()->createMany($request->input('items'));
         //update the gatepass status to 1
 
-        return redirect()->route('gatepass.index')->with('success', 'Gatepass updated successfully!');
+        return redirect()->route('gatepass.show', $gatepass)->with('success', 'Gatepass updated successfully!');
     }
 
     /**
@@ -167,17 +177,19 @@ class GatepassController extends Controller
     public function submitForApproval(Gatepass $gatepass)
 
     {
-        
 
-        $gatepassCompany = $gatepass->department->company;
-        $firstApprovalLevel = ApprovalLevel::where('mgr_gtpapprovallevels_company', $gatepassCompany->mgr_gtpcompanies_id)
+
+        //  $gatepassCompany = $gatepass->department->company;
+        $gatepassDepartment = $gatepass->department;
+
+
+        $firstApprovalLevel = ApprovalLevel::where('mgr_gtpapprovallevels_department', $gatepassDepartment->mgr_gtpdepartments_id)
             ->orderBy('mgr_gtpapprovallevels_sequence', 'asc')->first();
-            //dd($firstApprovalLevel);
+        //dd($firstApprovalLevel);
 
         $approverRole = $firstApprovalLevel->role->users
-            ->where('mgr_gtpusers_department', $gatepass->department->mgr_gtpdepartments_id);
+            ->where('mgr_gtpusers_department', $gatepassDepartment->mgr_gtpdepartments_id);
 
-       //dd($approverRole);
 
         // create approval record on submit
         $gatepass->approvals()->create([
@@ -191,7 +203,7 @@ class GatepassController extends Controller
         ]);
 
         foreach ($approverRole as $approver) {
-            Mail::to($approver->mgr_gtpusers_email)->send(new submitForApproval);
+            Mail::to($approver->mgr_gtpusers_email)->send(new submitForApproval($gatepass));
         }
 
         return redirect()->route('gatepass.index')->with('success', 'Gatepass submitted for approval!');
@@ -199,6 +211,7 @@ class GatepassController extends Controller
     public function gatepassApproval(Request $request, Gatepass $gatepass)
     {
         $previousApproval = $gatepass->approvals()->where('mgr_gtpapprovals_status', 2)->first();
+        //dd($previousApproval);
 
         $previousApproval->update([
             'mgr_gtpapprovals_status' => $request->input('status'),
@@ -208,10 +221,12 @@ class GatepassController extends Controller
         ]);
 
         if ($request->input('status') == 1) {
-            $nextApprovalLevel = ApprovalLevel::where('mgr_gtpapprovallevels_company', $gatepass->department->company->mgr_gtpcompanies_id)
+            $nextApprovalLevel = ApprovalLevel::where('mgr_gtpapprovallevels_department', $gatepass->department->mgr_gtpdepartments_id)
                 ->where('mgr_gtpapprovallevels_sequence', '>', $previousApproval->approvallevel->mgr_gtpapprovallevels_sequence)
                 ->orderBy('mgr_gtpapprovallevels_sequence', 'asc')
                 ->first();
+            // dd($nextApprovalLevel);
+           
 
             if ($nextApprovalLevel) {
                 $gatepass->approvals()->create([
@@ -220,8 +235,8 @@ class GatepassController extends Controller
                     'mgr_gtpapprovals_approvallevel' => $nextApprovalLevel->mgr_gtpapprovallevels_id,
                 ]);
 
-                foreach ($nextApprovalLevel->role->users as $approver) {
-                    Mail::to($approver->mgr_gtpusers_email)->send(new submitForApproval);
+                foreach ($nextApprovalLevel->role->users ->where('mgr_gtpusers_department', $gatepass->department->mgr_gtpdepartments_id) as $approver) {
+                    Mail::to($approver->mgr_gtpusers_email)->send(new submitForApproval($gatepass));
                 }
             } else {
 
@@ -230,22 +245,22 @@ class GatepassController extends Controller
                 ]);
 
                 //Notify the requestor that the gatepass has been approved
-                Mail::to($gatepass->user->mgr_gtpusers_email)->send(new GatepassApproved);
+                Mail::to($gatepass->user->mgr_gtpusers_email)->send(new GatepassApproved($gatepass));
             }
         } else {
             $gatepass->update([
                 'mgr_gtpgatepass_status' => 0
             ]);
             //Notify the requestor that the gatepass has been rejected
-            Mail::to($gatepass->user->mgr_gtpusers_email)->send(new GatepassRejected);
+            Mail::to($gatepass->user->mgr_gtpusers_email)->send(new GatepassRejected($gatepass));
         }
     }
     //create function to print a gatepass when print button is clicked
     public function printGatepass(Gatepass $gatepass)
     {
-    
+
         //return gatepass.print in pdf format 
-      //  $gatepass->load('user', 'uom', 'department', 'source_location', 'destination_location', 'company', 'items', 'approvals.approvalLevel.role', 'approvals.user');
+        //  $gatepass->load('user', 'uom', 'department', 'source_location', 'destination_location', 'company', 'items', 'approvals.approvalLevel.role', 'approvals.user');
 
 
         $pdf = PDF::loadView('gatepass.print', compact('gatepass'));

@@ -9,18 +9,24 @@ use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-class GatepassApproved extends Mailable
+class GatepassApproved extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
+
+    protected $gatepass;
+
+    public function __construct($gatepass)
+    {
+        $this->gatepass = $gatepass;
+    }
 
     /**
      * Create a new message instance.
      */
     public function build()
     {
-        return $this->from ('diana.moraa@grainbulk.com')
-        ->subject('Gatepass Approved')
-        ->view('emails.GatepassApproved');
-         
+        return $this->from('ictsupport@bulkstream.com')
+            ->subject('Gatepass Approved')
+            ->view('emails.GatepassApproved', ['gatepass' => $this->gatepass]);
     }
 }
